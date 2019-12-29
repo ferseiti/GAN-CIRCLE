@@ -14,8 +14,8 @@ def main():
     train_dir = os.path.join('train/', name)
 
     f = h5py.File('./test_v2nds_2D.h5', 'r')
-    test_data = f.get('LR')
-    test_label = f.get('SR')
+    test_data = f.get('data')
+    test_label = f.get('label')
 
     args.w = test_data.shape[1]
     args.h = test_data.shape[2]

@@ -229,7 +229,7 @@ class CycleGAN:
 
         # test images
         #input_data = scipy.io.loadmat('./test_mayo_20db_sz.mat')
-        input_data = h5py.File('/ddn/beamline/Fernando/upscaling/talitas/0008.h5')
+        input_data = h5py.File('/ddn/beamline/Fernando/upscaling/talitas/0004.h5')
         input_data = np.real(np.squeeze(input_data['data']))
         #print("input_data shape",input_data.shape)
         input_data = np.expand_dims(input_data, axis=0)
@@ -252,6 +252,7 @@ class CycleGAN:
             for epoch in range(sess.run(self.global_step), self.max_step):
                 saver.save(sess, self.model_dir, global_step=epoch)
                 
+                print('Epoch {}'.format(epoch))
                 if epoch < 100:
                     current_lr_g = self.base_lr_g
                     current_lr_d = self.base_lr_d

@@ -2,6 +2,7 @@ import numpy as np
 import os
 import sys
 import random
+from tifffile import imsave
 import tensorflow as tf
 
 from datetime import datetime
@@ -36,7 +37,7 @@ class CycleGAN:
 
 
         self.model_dir = model_dir
-        self.summary_dir = summary_dir
+        self.summary_dir = summary_dir + str(current_time)
 
         #Initalize fake images
         self.fake_a = []
@@ -54,7 +55,7 @@ class CycleGAN:
         # sub_data = (sub_data-self.min)/denom - 1
 
         # Randomly flip
-        for i in range(self.batch_size):
+        for i in range(len(sub_data)):
             if np.random.choice(2,1)[0] == 1:
                 sub_data[i] = sub_data[i,::-1]
             if np.random.choice(2,1)[0] == 1:
@@ -76,7 +77,7 @@ class CycleGAN:
                                           name='fake_pool_b')
         
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
-        self.X1 = tf.placeholder(dtype=tf.float32, shape=[1, 512, 512, 1])
+        self.X1 = tf.placeholder(dtype=tf.float32, shape=[1, 2048, 2048, 1])
         self.n_fake_a = 0
         self.n_fake_b = 0
         self.lr_g = tf.placeholder(tf.float32, shape=[], name='lr_g')
@@ -182,10 +183,12 @@ class CycleGAN:
         g_b_vars = [v for v in self.vars if 'g_b' in v.name]
 
         #Train while freezing other variables
-        optimizer = tf.train.AdamOptimizer(self.lr_d, beta1=0.5)
+        #optimizer = tf.train.AdamOptimizer(self.lr_d, beta1=0.5)
+        optimizer = tf.train.AdadeltaOptimizer()
         self.d_train = optimizer.minimize(self.d_loss, var_list=d_b_vars+d_a_vars)
 
-        optimizer = tf.train.AdamOptimizer(self.lr_g, beta1=0.5)
+        #optimizer = tf.train.AdamOptimizer(self.lr_g, beta1=0.5)
+        optimizer = tf.train.AdadeltaOptimizer()
         self.g_train = optimizer.minimize(self.g_loss, var_list=g_a_vars+g_b_vars)
 
 
@@ -196,20 +199,20 @@ class CycleGAN:
     def fake_pool(self, fake, pool, n_fake):
         assert len(pool) <= self.pool_size
         results = []
-        for i in range(self.batch_size):
+        for fa in fake:
             if n_fake < self.pool_size:
                 # pool[n_fake] = fake[i]
-                pool.append(fake[i])
-                results.append(fake[i])
+                pool.append(fa)
+                results.append(fa)
             else:
                 p = random.random()
                 if p < 0.5:
                     index = random.randint(0, self.pool_size - 1)
                     temp = pool[index]
-                    pool[index] = fake[i]
+                    pool[index] = fa
                     results.append(temp)
                 else:
-                    results.append(fake[i])
+                    results.append(fa)
             n_fake += 1
         return np.array(results)
 
@@ -229,11 +232,16 @@ class CycleGAN:
 
         # test images
         #input_data = scipy.io.loadmat('./test_mayo_20db_sz.mat')
-        input_data = h5py.File('/ddn/beamline/Fernando/upscaling/talitas/0004.h5')
-        input_data = np.real(np.squeeze(input_data['data']))
+        input_data = np.fromfile('/ddn/beamline/Fernando/upscaling/talitas/validation.pkl', dtype='float32').reshape((2048, 2048))
+        input_data = np.real(np.squeeze(input_data))
         #print("input_data shape",input_data.shape)
         input_data = np.expand_dims(input_data, axis=0)
         input_data = np.expand_dims(input_data, axis=3)
+
+        input_data_2 = np.fromfile('/ddn/beamline/Fernando/upscaling/talitas/0008_200_lr.pkl', dtype='float32').reshape((2048, 2048))
+        input_data_2 = np.real(np.squeeze(input_data_2))
+        input_data_2 = np.expand_dims(input_data_2, axis=0)
+        input_data_2 = np.expand_dims(input_data_2, axis=3)
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
@@ -303,8 +311,8 @@ class CycleGAN:
                         # print("dis a loss : ", d_a_loss)
                         # print("dis b loss : ", d_b_loss)
                         
-                np.random.shuffle(data)
-                np.random.shuffle(label)
+                #np.random.shuffle(data)
+                #np.random.shuffle(label)
                     
                 sess.run(tf.assign(self.global_step, epoch + 1))
                 saver.save(sess, self.model_dir+'cycleWGAN_'+repr(epoch+1)+'_'+repr(i+1)+'.ckpt')
@@ -313,8 +321,11 @@ class CycleGAN:
                     os.makedirs('./Test_Mayo_GAN_DCSCN_20db_new/')
                 output_data = sess.run(self.Y1, feed_dict={self.X1: input_data})
                 output_data = np.squeeze(output_data)
-                #output_data = np.transpose(output_data, (1,0))
-                scipy.misc.toimage(output_data, cmin=0.2333, cmax=0.9).save('./Test_Mayo_GAN_DCSCN_20db_new/dcscn_2D_'+repr(epoch+1)+'.png')
+                imsave('./validation/'+repr(epoch+1)+'.tiff', output_data)
+
+                output_data_2 = sess.run(self.Y1, feed_dict={self.X1: input_data_2})
+                output_data_2 = np.squeeze(output_data_2)
+                imsave('./validation/0008'+repr(epoch+1)+'.tiff', output_data_2)
             writer.add_graph(sess.graph)
     
     def test(self,data,label):

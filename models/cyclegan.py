@@ -1,11 +1,13 @@
 import numpy as np
 import os
+import sys
 import random
 import tensorflow as tf
 
 from datetime import datetime
 from glob import glob
 
+import h5py
 import scipy.misc
 import scipy.io
 
@@ -83,6 +85,7 @@ class CycleGAN:
     
     def forward(self):
         with tf.variable_scope('CycleGAN') as scope:
+            alpha = 0.01
             #D(A), D(B)
             self.p_real_a = discriminator(self.real_a, scope='d_a')
             self.p_real_b = discriminator(self.real_b, scope='d_b')
@@ -142,8 +145,8 @@ class CycleGAN:
         identity_loss_b = self.lambda_b * cyclic_loss_new(self.real_b, self.p_fake_bb)/2
 
         #Identity loss
-        joint_loss_a = self.lambda_a / 10 * tf.reduce_sum(tf.image.total_variation(p_fake_aa))/20 + (1-self.lambda_a / 10) * tf.reduce_sum(tf.image.total_variation(real_a - p_fake_aa))/20
-        joint_loss_b = self.lambda_b / 10 * tf.reduce_sum(tf.image.total_variation(p_fake_bb))/20 + (1-self.lambda_b / 10) * tf.reduce_sum(tf.image.total_variation(real_b - p_fake_bb))/20
+        joint_loss_a = self.lambda_a / 10 * tf.reduce_sum(tf.image.total_variation(self.p_fake_aa))/20 + (1-self.lambda_a / 10) * tf.reduce_sum(tf.image.total_variation(self.real_a - self.p_fake_aa))/20
+        joint_loss_b = self.lambda_b / 10 * tf.reduce_sum(tf.image.total_variation(self.p_fake_bb))/20 + (1-self.lambda_b / 10) * tf.reduce_sum(tf.image.total_variation(self.real_b - self.p_fake_bb))/20
 
         # #Supvision loss
         # sup_loss_b = 0.5*cyclic_loss_new(self.real_b,self.fake_img_b)
@@ -225,8 +228,9 @@ class CycleGAN:
         # saver.restore(sess,'./Network/cycleWGAN/cycleWGAN_100_1.ckpt')
 
         # test images
-        input_data = scipy.io.loadmat('./test_mayo_20db_sz.mat')
-        input_data = np.real(np.squeeze(input_data['LR']))
+        #input_data = scipy.io.loadmat('./test_mayo_20db_sz.mat')
+        input_data = h5py.File('/ddn/beamline/Fernando/upscaling/talitas/0008.h5')
+        input_data = np.real(np.squeeze(input_data['data']))
         #print("input_data shape",input_data.shape)
         input_data = np.expand_dims(input_data, axis=0)
         input_data = np.expand_dims(input_data, axis=3)
